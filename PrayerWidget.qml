@@ -53,8 +53,13 @@ PluginComponent {
         }
     }
 
-    Component.onCompleted: {
-        prayerProcess.running = true;
+    Timer {
+        interval: 10
+        running: true
+        repeat: false
+        onTriggered: {
+            prayerProcess.running = true;
+        }
     }
 
     Timer {
