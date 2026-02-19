@@ -76,18 +76,31 @@ PluginComponent {
     popoutContent: Component {
         Column {
             id: prayerPopup
-
-            // width: 50
             spacing: Theme.spacingS
             padding: Theme.spacingM
 
-            StyledText { text: "🗓️ Hijri: " + root.dateHijr }
-            StyledText { text: "🗓️ Gregorian: " + root.dateGreg }
-            StyledText { text: "🌅 Fajr: " + root.fajr }
-            StyledText { text: "☀️ Dhuhr: " + root.dhuhr }
-            StyledText { text: "🌤️ Asr: " + root.asr }
-            StyledText { text: "🌇 Maghrib: " + root.maghrib }
-            StyledText { text: "🌙 Isha: " + root.isha }
+            Repeater {
+                model: getPrayerTimesList()
+
+                delegate: Row {
+                    spacing: Theme.spacingM
+
+                    DankIcon {
+                        name: modelData.icon
+                        size: Theme.iconSize
+                        color: Theme.surfaceText
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    StyledText {
+                        text: modelData.label + ": " + modelData.value
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: Theme.surfaceText
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+            }
         }
     }
 
@@ -96,9 +109,9 @@ PluginComponent {
             spacing: Theme.spacingXS
             rightPadding: Theme.spacingS
 
-            StyledText {
-                text: "🕌 "
-                font.pixelSize: Theme.fontSizeMedium
+            DankIcon {
+                name: root.prayerIcons[root.currName] || "mosque"
+                size: Theme.iconSize - 6
                 color: Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
             }
@@ -108,27 +121,41 @@ PluginComponent {
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
+                maximumLineCount: 1
+                elide: Text.ElideRight
             }
 
             MouseArea {
                 onClicked: {
-                    // loadPrayerData(() => { prayerPopup.open(); });
-                    // jsonFile.read();
-                    // prayerPopup.open();
+                    // Open prayer times popup
                 }
             }
         }
     }
 
-    function getPrayerIcon() {
-        switch(root.currName) {
-            case "Fajr": return "sunny";
-            case "Dhuhr": return "light_mode";
-            case "Asr": return "partly_cloudy_day";
-            case "Maghrib": return "sunset";
-            case "Isha": return "nightlight";
-            default: return "mosque";
-        }
+    property var prayerIcons: ({
+        "Fajr": "sunny",
+        "Dhuhr": "light_mode",
+        "Asr": "partly_cloudy_day",
+        "Maghrib": "wb_twilight",
+        "Isha": "nightlight"
+    })
+
+    function getPrayerIcon(name) {
+        return prayerIcons[name || root.currName] || "mosque"
+    }
+
+    function getPrayerTimesList() {
+        return [
+            { label: "Hijri", value: root.dateHijr, icon: "calendar_today" },
+            { label: "Gregorian", value: root.dateGreg, icon: "calendar_today" },
+
+            { label: "Fajr", value: root.fajr, icon: getPrayerIcon("Fajr") },
+            { label: "Dhuhr", value: root.dhuhr, icon: getPrayerIcon("Dhuhr") },
+            { label: "Asr", value: root.asr, icon: getPrayerIcon("Asr") },
+            { label: "Maghrib", value: root.maghrib, icon: getPrayerIcon("Maghrib") },
+            { label: "Isha", value: root.isha, icon: getPrayerIcon("Isha") }
+        ];
     }
 
     verticalBarPill: Component {
@@ -136,11 +163,13 @@ PluginComponent {
             spacing: Theme.spacingXS
 
             DankIcon {
-                name: root.getPrayerIcon()
+                name: root.prayerIcons[root.currName] || "mosque"
                 size: Theme.iconSize - 6
                 color: Theme.surfaceText
                 anchors.horizontalCenter: parent.horizontalCenter
             }
         }
     }
+
+
 }
