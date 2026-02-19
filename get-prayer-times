@@ -48,6 +48,7 @@ ASR=$(echo "$TIMINGS" | jq -r '.Asr')
 MAGHRIB=$(echo "$TIMINGS" | jq -r '.Maghrib')
 ISHA=$(echo "$TIMINGS" | jq -r '.Isha')
 NOW=$(date +%H:%M)
+SUNRISE=$(echo "$TIMINGS" | jq -r '.Sunrise')
 
 GREG_DATE=$(echo "$TODAYDATA" | jq -r '.date.readable')
 HIJRI_DATE=$(echo "$TODAYDATA" | jq -r '.date.hijri | "\(.day) \(.month.en) \(.year)"')
@@ -61,20 +62,27 @@ to_minutes() {
 }
 
 NOW_MIN=$(to_minutes "$NOW")
-
-# Tentukan Shalat Sekarang dan Shalat Berikutnya
 if [[ "$NOW" < "$FAJR" ]]; then
-    CURR_NAME="Isha"; CURR_TIME="$ISHA"; NEXT_NAME="Fajr"; NEXT_TIME="$FAJR"
+    CURR_NAME="Isha";    CURR_TIME="$ISHA"
+    NEXT_NAME="Fajr";    NEXT_TIME="$FAJR"
+elif [[ "$NOW" < "$SUNRISE" ]]; then
+    CURR_NAME="Fajr";    CURR_TIME="$FAJR"
+    NEXT_NAME="Sunrise"; NEXT_TIME="$SUNRISE"
 elif [[ "$NOW" < "$DHUHR" ]]; then
-    CURR_NAME="Fajr"; CURR_TIME="$FAJR"; NEXT_NAME="Dhuhr"; NEXT_TIME="$DHUHR"
+    CURR_NAME="Sunrise"; CURR_TIME="$SUNRISE"
+    NEXT_NAME="Dhuhr";   NEXT_TIME="$DHUHR"
 elif [[ "$NOW" < "$ASR" ]]; then
-    CURR_NAME="Dhuhr"; CURR_TIME="$DHUHR"; NEXT_NAME="Asr"; NEXT_TIME="$ASR"
+    CURR_NAME="Dhuhr";   CURR_TIME="$DHUHR"
+    NEXT_NAME="Asr";     NEXT_TIME="$ASR"
 elif [[ "$NOW" < "$MAGHRIB" ]]; then
-    CURR_NAME="Asr"; CURR_TIME="$ASR"; NEXT_NAME="Maghrib"; NEXT_TIME="$MAGHRIB"
+    CURR_NAME="Asr";     CURR_TIME="$ASR"
+    NEXT_NAME="Maghrib"; NEXT_TIME="$MAGHRIB"
 elif [[ "$NOW" < "$ISHA" ]]; then
-    CURR_NAME="Maghrib"; CURR_TIME="$MAGHRIB"; NEXT_NAME="Isha"; NEXT_TIME="$ISHA"
+    CURR_NAME="Maghrib"; CURR_TIME="$MAGHRIB"
+    NEXT_NAME="Isha";    NEXT_TIME="$ISHA"
 else
-    CURR_NAME="Isha"; CURR_TIME="$ISHA"; NEXT_NAME="Fajr"; NEXT_TIME="$FAJR"
+    CURR_NAME="Isha";    CURR_TIME="$ISHA"
+    NEXT_NAME="Fajr";    NEXT_TIME="$FAJR"
 fi
 
 # Hitung selisih antara NOW dengan waktu shalat yang sedang berjalan (CURR_TIME)
@@ -101,7 +109,8 @@ TIMINGS=$(echo "$TIMINGS" | jq \
   --arg prayerInfo "$RESULT" \
   --arg hijr "$HIJRI_DATE" \
   --arg greg "$GREG_DATE" \
-  '. + {prayerInfo: $prayerInfo, DateHijr: $hijr, DateGreg: $greg}')
+  --arg currName "$CURR_NAME" \
+  '. + {prayerInfo: $prayerInfo, DateHijr: $hijr, DateGreg: $greg, currName: $currName}')
   
 TIMINGSS=$(echo "$TIMINGS" | jq -c .)
 echo "$TIMINGSS"

@@ -18,6 +18,7 @@ PluginComponent {
     property string isha: ""
     property string dateHijr: ""
     property string dateGreg: ""
+    property string currName: "Fajr" // Current prayer name: Fajr, Dhuhr, Asr, Maghrib, Isha
     property bool pluginDataLoaded: false
     property int refreshInterval: 5 * 60000 // default in minutes
     property string lat: "-6.2088" // default Jakarta
@@ -51,6 +52,7 @@ PluginComponent {
 
                     root.dateGreg = data.DateGreg
                     root.dateHijr = data.DateHijr
+                    root.currName = data.currName || "Fajr"
 
                 } catch (e) {
                     ToastService.showError("JSON error:", e.message);
@@ -118,38 +120,26 @@ PluginComponent {
         }
     }
 
+    function getPrayerIcon() {
+        switch(root.currName) {
+            case "Fajr": return "sunny";
+            case "Dhuhr": return "light_mode";
+            case "Asr": return "partly_cloudy_day";
+            case "Maghrib": return "sunset";
+            case "Isha": return "nightlight";
+            default: return "mosque";
+        }
+    }
+
     verticalBarPill: Component {
-        Rectangle {
-            color: Theme.surface
-            border.color: Theme.surfaceText
-            border.width: 1
-            radius: Theme.spacingXS
+        Column {
+            spacing: Theme.spacingXS
 
-            Column {
-                spacing: Theme.spacingXS
-                anchors.fill: parent
-                anchors.margins: Theme.spacingXS
-
-                StyledText {
-                    text: "🕌 "
-                    font.pixelSize: Theme.fontSizeMedium
-                    color: Theme.surfaceText
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-
-                StyledText {
-                    text: root.prayerInfo
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.surfaceText
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-
-                MouseArea {
-                    // anchors.fill: parent
-                    // onClicked: {
-                    //     loadPrayerData(() => { prayerPopup.open(); });
-                    // }
-                }
+            DankIcon {
+                name: root.getPrayerIcon()
+                size: Theme.iconSize - 6
+                color: Theme.surfaceText
+                anchors.horizontalCenter: parent.horizontalCenter
             }
         }
     }
