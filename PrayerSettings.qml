@@ -54,4 +54,11 @@ PluginSettings {
         description: "Example: 106.8166"
         defaultValue: "0.0"
     }
+
+    ToggleSetting {
+        settingKey: "use12HourFormat"
+        label: "12-Hour Format"
+        description: "Display prayer times in 12-hour format instead of 24-hour"
+        defaultValue: false
+    }
 }
