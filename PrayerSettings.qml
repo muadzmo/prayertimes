@@ -55,6 +55,7 @@ PluginSettings {
         defaultValue: "0.0"
     }
 
+<<<<<<< HEAD
     SelectionSetting {
         settingKey: "method"
         label: "Calculation Method"
@@ -99,3 +100,12 @@ PluginSettings {
         ]
     }
 }
+=======
+    ToggleSetting {
+        settingKey: "use12HourFormat"
+        label: "12-Hour Format"
+        description: "Display prayer times in 12-hour format instead of 24-hour"
+        defaultValue: false
+    }
+}
+>>>>>>> upstream/main
