@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Io
 import qs.Common
 import qs.Services
 import qs.Widgets
@@ -34,6 +35,18 @@ PluginComponent {
     property string cachedSchool: ""     // The school the cache was fetched with (invalidate on change)
     property bool fetching: false        // Guard flag — prevents overlapping concurrent HTTP requests
     property int retryCount: 0           // Tracks consecutive 429 failures for exponential backoff
+
+    property string detailNotif: ""
+    Process {
+        id: sendNotif
+        command: [
+            "notify-send",
+            "-a", "Prayer Widget",
+            "-u", "critical",
+            root.detailNotif
+        ]
+        running: false
+    }
 
     // Settings handler:
     // Called whenever plugin settings change (refresh interval, lat, lon, method, school).
@@ -258,7 +271,8 @@ PluginComponent {
             // Fire a toast notification if the prayer JUST started (within one refresh cycle).
             // e.g. at 5min refresh: toast fires when diff is 0–5min, so you see it once.
             if (diff * 60000 <= root.refreshInterval) {
-                ToastService.showInfo("Prayer time - " + currName + " " + currTime)
+                root.detailNotif = "Prayer time - " + currName + " " + currTime
+                sendNotif.running = true;
             }
         }
         result += nextName + " " + nextTime
@@ -273,7 +287,8 @@ PluginComponent {
         if (timeUntilNext <= 15 && timeUntilNext > 0) {
             // Fire only once: when we first enter the ≤15min window (within one refresh cycle of 15min)
             if ((15 - timeUntilNext) * 60000 < root.refreshInterval) {
-                ToastService.showInfo(nextName + " in " + timeUntilNext + " min")
+                root.detailNotif = nextName + " in " + timeUntilNext + " min"
+                sendNotif.running = true;
             }
         }
 
