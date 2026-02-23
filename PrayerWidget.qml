@@ -23,12 +23,37 @@ PluginComponent {
     property int refreshInterval: 5 * 60000 // default in minutes
     property string lat: "" // default Jakarta
     property string lon: "" // default Jakarta
+    property bool use12HourFormat: false
     property string scriptPath: Qt.resolvedUrl("get-prayer-times").toString().replace("file://", "")
+    
+    function getFormattedPrayerInfo() {
+        if (!prayerInfo) return prayerInfo;
+        
+        // prayerInfo format: "Next: Asr 04:32" or "Current: Asr 04:32 - Next: Dhuhr 12:34"
+        var match = prayerInfo.match(/([A-Za-z]+):\s+([A-Za-z]+)\s+(\d{2}):(\d{2})/);
+        if (!match) return prayerInfo;
+        
+        var prefix = match[1]; // "Next" or "Current"
+        var prayerName = match[2]; // "Asr", "Dhuhr", etc
+        var time24h = match[3] + ":" + match[4]; // "04:32"
+        
+        var formattedTime = formatTime(time24h);
+        var result = prefix + ": " + prayerName + " " + formattedTime;
+        
+        // Handle "Current: X XX:XX - Next: Y YY:YY" format
+        var remainingIndex = match.index + match[0].length;
+        if (remainingIndex < prayerInfo.length) {
+            result += prayerInfo.substring(remainingIndex);
+        }
+        
+        return result;
+    }
 
     onPluginDataChanged: {
         root.refreshInterval = (Number(root.pluginData.refreshInterval) || 5) * 60000
         root.lat = root.pluginData.lat
         root.lon = root.pluginData.lon
+        root.use12HourFormat = root.pluginData.use12HourFormat === "true" || root.pluginData.use12HourFormat === true
         root.pluginDataLoaded = true
         // Run process immediately when pluginData is loaded
         prayerProcess.running = true;
@@ -117,7 +142,7 @@ PluginComponent {
             }
 
             StyledText {
-                text: root.prayerInfo
+                text: root.getFormattedPrayerInfo()
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
@@ -145,16 +170,44 @@ PluginComponent {
         return prayerIcons[name || root.currName] || "mosque"
     }
 
+    function formatTime(time24h) {
+        if (!time24h || time24h === "") return "";
+        
+        if (!root.use12HourFormat) {
+            return time24h;
+        }
+        
+        // Parse HH:MM format
+        var parts = time24h.split(":");
+        if (parts.length !== 2) return time24h;
+        
+        var hours = parseInt(parts[0]);
+        var minutes = parts[1];
+        var ampm = hours >= 12 ? "PM" : "AM";
+        
+        // Convert to 12-hour format
+        if (hours > 12) {
+            hours = hours - 12;
+        } else if (hours === 0) {
+            hours = 12;
+        }
+        
+        // Pad hours with leading zero if needed
+        var hoursStr = hours < 10 ? "0" + hours : hours.toString();
+        
+        return hoursStr + ":" + minutes + " " + ampm;
+    }
+
     function getPrayerTimesList() {
         return [
             { label: "Hijri", value: root.dateHijr, icon: "calendar_today" },
             { label: "Gregorian", value: root.dateGreg, icon: "calendar_today" },
 
-            { label: "Fajr", value: root.fajr, icon: getPrayerIcon("Fajr") },
-            { label: "Dhuhr", value: root.dhuhr, icon: getPrayerIcon("Dhuhr") },
-            { label: "Asr", value: root.asr, icon: getPrayerIcon("Asr") },
-            { label: "Maghrib", value: root.maghrib, icon: getPrayerIcon("Maghrib") },
-            { label: "Isha", value: root.isha, icon: getPrayerIcon("Isha") }
+            { label: "Fajr", value: root.formatTime(root.fajr), icon: getPrayerIcon("Fajr") },
+            { label: "Dhuhr", value: root.formatTime(root.dhuhr), icon: getPrayerIcon("Dhuhr") },
+            { label: "Asr", value: root.formatTime(root.asr), icon: getPrayerIcon("Asr") },
+            { label: "Maghrib", value: root.formatTime(root.maghrib), icon: getPrayerIcon("Maghrib") },
+            { label: "Isha", value: root.formatTime(root.isha), icon: getPrayerIcon("Isha") }
         ];
     }
 
