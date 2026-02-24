@@ -2,7 +2,7 @@
   "id": "prayerTimes",
   "name": "Prayer Times",
   "description": "Display Islamic prayer times from Aladhan API",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "author": "muadz",
   "icon": "mosque",
   "component": "./PrayerWidget.qml",
