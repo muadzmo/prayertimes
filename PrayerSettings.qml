@@ -23,6 +23,50 @@ PluginSettings {
         wrapMode: Text.WordWrap
     }
 
+    SelectionSetting {
+        settingKey: "method"
+        label: "Calculation Method"
+        description: "Method used to calculate prayer times. Leave on Auto to let the API choose based on your location."
+        options: [
+            { label: "Auto (based on location)", value: "" },
+            { label: "Jafari / Shia Ithna-Ashari", value: "0" },
+            { label: "University of Islamic Sciences, Karachi", value: "1" },
+            { label: "Islamic Society of North America", value: "2" },
+            { label: "Muslim World League", value: "3" },
+            { label: "Umm Al-Qura University, Makkah", value: "4" },
+            { label: "Egyptian General Authority of Survey", value: "5" },
+            { label: "Institute of Geophysics, University of Tehran", value: "7" },
+            { label: "Gulf Region", value: "8" },
+            { label: "Kuwait", value: "9" },
+            { label: "Qatar", value: "10" },
+            { label: "Majlis Ugama Islam Singapura, Singapore", value: "11" },
+            { label: "Union Organization islamic de France", value: "12" },
+            { label: "Diyanet İşleri Başkanlığı, Turkey", value: "13" },
+            { label: "Spiritual Administration of Muslims of Russia", value: "14" },
+            { label: "Moonsighting Committee Worldwide", value: "15" },
+            { label: "Dubai (experimental)", value: "16" },
+            { label: "JAKIM, Malaysia", value: "17" },
+            { label: "Tunisia", value: "18" },
+            { label: "Algeria", value: "19" },
+            { label: "KEMENAG, Indonesia", value: "20" },
+            { label: "Morocco", value: "21" },
+            { label: "Comunidade Islamica de Lisboa", value: "22" },
+            { label: "Ministry of Awqaf, Jordan", value: "23" }
+        ]
+        defaultValue: ""
+    }
+
+    SelectionSetting {
+        settingKey: "school"
+        label: "Asr Calculation School"
+        description: "Juristic school used to calculate the Asr prayer time."
+        options: [
+            { label: "Shafi (Default)", value: "0" },
+            { label: "Hanafi", value: "1" }
+        ]
+        defaultValue: "0"
+    }
+
     StyledRect {
         width: parent.width
         height: locationColumn.implicitHeight + Theme.spacingL * 2
@@ -72,70 +116,71 @@ PluginSettings {
         }
     }
 
-    StyledRect {
-        width: parent.width
-        height: calculationColumn.implicitHeight + Theme.spacingL * 2
-        radius: Theme.cornerRadius
-        color: Theme.surfaceContainerHigh
+    // ToDo: Fix the SelectionSetting not remembering the selected value under StyledRect object.
+    // StyledRect {
+    //     width: parent.width
+    //     height: calculationColumn.implicitHeight + Theme.spacingL * 2
+    //     radius: Theme.cornerRadius
+    //     color: Theme.surfaceContainerHigh
 
-        Column {
-            id: calculationColumn
-            anchors.fill: parent
-            anchors.margins: Theme.spacingL
-            spacing: Theme.spacingM
+    //     Column {
+    //         id: calculationColumn
+    //         anchors.fill: parent
+    //         anchors.margins: Theme.spacingL
+    //         spacing: Theme.spacingM
 
-            StyledText {
-                text: "Calculation"
-                font.pixelSize: Theme.fontSizeMedium
-                font.weight: Font.Medium
-                color: Theme.surfaceText
-            }
+    //         StyledText {
+    //             text: "Calculation"
+    //             font.pixelSize: Theme.fontSizeMedium
+    //             font.weight: Font.Medium
+    //             color: Theme.surfaceText
+    //         }
 
-            SelectionSetting {
-                settingKey: "method"
-                label: "Calculation Method"
-                description: "Method used to calculate prayer times. Leave on Auto to let the API choose based on your location."
-                defaultValue: ""
-                options: [
-                    { label: "Auto (based on location)", value: "" },
-                    { label: "Jafari / Shia Ithna-Ashari", value: "0" },
-                    { label: "University of Islamic Sciences, Karachi", value: "1" },
-                    { label: "Islamic Society of North America", value: "2" },
-                    { label: "Muslim World League", value: "3" },
-                    { label: "Umm Al-Qura University, Makkah", value: "4" },
-                    { label: "Egyptian General Authority of Survey", value: "5" },
-                    { label: "Institute of Geophysics, University of Tehran", value: "7" },
-                    { label: "Gulf Region", value: "8" },
-                    { label: "Kuwait", value: "9" },
-                    { label: "Qatar", value: "10" },
-                    { label: "Majlis Ugama Islam Singapura, Singapore", value: "11" },
-                    { label: "Union Organization islamic de France", value: "12" },
-                    { label: "Diyanet İşleri Başkanlığı, Turkey", value: "13" },
-                    { label: "Spiritual Administration of Muslims of Russia", value: "14" },
-                    { label: "Moonsighting Committee Worldwide", value: "15" },
-                    { label: "Dubai (experimental)", value: "16" },
-                    { label: "JAKIM, Malaysia", value: "17" },
-                    { label: "Tunisia", value: "18" },
-                    { label: "Algeria", value: "19" },
-                    { label: "KEMENAG, Indonesia", value: "20" },
-                    { label: "Morocco", value: "21" },
-                    { label: "Comunidade Islamica de Lisboa", value: "22" },
-                    { label: "Ministry of Awqaf, Jordan", value: "23" }
-                ]
-            }
+    //         SelectionSetting {
+    //             settingKey: "method"
+    //             label: "Calculation Method"
+    //             description: "Method used to calculate prayer times. Leave on Auto to let the API choose based on your location."
+    //             options: [
+    //                 { label: "Auto (based on location)", value: "" },
+    //                 { label: "Jafari / Shia Ithna-Ashari", value: "0" },
+    //                 { label: "University of Islamic Sciences, Karachi", value: "1" },
+    //                 { label: "Islamic Society of North America", value: "2" },
+    //                 { label: "Muslim World League", value: "3" },
+    //                 { label: "Umm Al-Qura University, Makkah", value: "4" },
+    //                 { label: "Egyptian General Authority of Survey", value: "5" },
+    //                 { label: "Institute of Geophysics, University of Tehran", value: "7" },
+    //                 { label: "Gulf Region", value: "8" },
+    //                 { label: "Kuwait", value: "9" },
+    //                 { label: "Qatar", value: "10" },
+    //                 { label: "Majlis Ugama Islam Singapura, Singapore", value: "11" },
+    //                 { label: "Union Organization islamic de France", value: "12" },
+    //                 { label: "Diyanet İşleri Başkanlığı, Turkey", value: "13" },
+    //                 { label: "Spiritual Administration of Muslims of Russia", value: "14" },
+    //                 { label: "Moonsighting Committee Worldwide", value: "15" },
+    //                 { label: "Dubai (experimental)", value: "16" },
+    //                 { label: "JAKIM, Malaysia", value: "17" },
+    //                 { label: "Tunisia", value: "18" },
+    //                 { label: "Algeria", value: "19" },
+    //                 { label: "KEMENAG, Indonesia", value: "20" },
+    //                 { label: "Morocco", value: "21" },
+    //                 { label: "Comunidade Islamica de Lisboa", value: "22" },
+    //                 { label: "Ministry of Awqaf, Jordan", value: "23" }
+    //             ]
+    //             defaultValue: ""
+    //         }
 
-            SelectionSetting {
-                settingKey: "school"
-                label: "Asr Calculation School"
-                description: "Juristic school used to calculate the Asr prayer time."
-                defaultValue: "0"
-                options: [
-                    { label: "Shafi (Default)", value: "0" },
-                    { label: "Hanafi", value: "1" }
-                ]
-            }
-        }
-    }
+    //         SelectionSetting {
+    //             settingKey: "school"
+    //             label: "Asr Calculation School"
+    //             description: "Juristic school used to calculate the Asr prayer time."
+    //             options: [
+    //                 { label: "Shafi (Default)", value: "0" },
+    //                 { label: "Hanafi", value: "1" }
+    //             ]
+    //             defaultValue: "0"
+    //         }
+    //     }
+    // }
 
     StyledRect {
         width: parent.width

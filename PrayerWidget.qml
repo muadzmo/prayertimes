@@ -419,8 +419,8 @@ PluginComponent {
     // Horizontal bar pill:
     horizontalBarPill: Component {
         Row {
-            spacing: Theme.spacingXS
-            rightPadding: Theme.spacingS
+            spacing: root.iconOnly ? 0 : Theme.spacingXS
+            rightPadding: root.iconOnly ? 0 : Theme.spacingS
 
             DankIcon {
                 name: root.getPrayerIcon(root.currName)
@@ -437,6 +437,7 @@ PluginComponent {
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
+                width: root.iconOnly ? 0 : implicitWidth
             }
 
             StyledText {
@@ -447,6 +448,7 @@ PluginComponent {
                 leftPadding: 2
                 rightPadding: 2
                 anchors.verticalCenter: parent.verticalCenter
+                width: (!root.iconOnly && root.nextTime !== "") ? implicitWidth : 0
             }
 
             StyledText {
@@ -456,6 +458,7 @@ PluginComponent {
                 font.weight: root.isUrgent ? Font.Bold : Font.Normal
                 color: root.isUrgent ? root.accentColor : Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
+                width: (!root.iconOnly && root.nextTime !== "") ? implicitWidth : 0
             }
         }
     }
