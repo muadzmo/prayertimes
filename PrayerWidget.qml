@@ -1,4 +1,4 @@
-import QtQuick
+&import QtQuick
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
@@ -9,6 +9,7 @@ import qs.Modules.Plugins
 
 PluginComponent {
     id: root
+    pluginId: "prayerTimes"
 
     property string prayerInfo: "..."
     property string fajr: ""
@@ -28,14 +29,27 @@ PluginComponent {
     property bool use12HourFormat: false
 
     // Persistent state:
-    // root.pluginState is used to store the monthly calendar data across sessions.
+    // We use pluginService to store the monthly calendar data across sessions.
     // This allows the plugin to work offline if data for the current month has been fetched once.
-    property var pluginState: pluginService.loadPluginState("prayerTimes", "")
-    property var calendarData: root.pluginState ? (root.pluginState.calendar || null) : null
-    property int cachedMonth: root.pluginState ? (root.pluginState.month || 0) : 0
-    property int cachedYear: root.pluginState ? (root.pluginState.year || 0) : 0
-    property string cachedMethod: root.pluginState ? (root.pluginState.method || "") : ""
-    property string cachedSchool: root.pluginState ? (root.pluginState.school || "") : ""
+    property var calendarData: null
+    property int cachedMonth: 0
+    property int cachedYear: 0
+    property string cachedMethod: ""
+    property string cachedSchool: ""
+
+    Component.onCompleted: {
+        var state = pluginService.loadPluginState(root.pluginId, "cache", {});
+        if (state.calendar) {
+            root.calendarData = state.calendar;
+            root.cachedMonth = state.month || 0;
+            root.cachedYear = state.year || 0;
+            root.cachedMethod = state.method || "";
+            root.cachedSchool = state.school || "";
+            if (root.pluginDataLoaded) {
+                processTodayFromCalendar(root.calendarData);
+            }
+        }
+    }
 
     property bool fetching: false        // Guard flag — prevents overlapping concurrent HTTP requests
     property int retryCount: 0           // Tracks consecutive 429 failures for exponential backoff
@@ -167,9 +181,7 @@ PluginComponent {
                                 method: root.method,
                                 school: root.school
                             }
-                            
-                            pluginService.savePluginState("prayerTimes", "", newState)
-                            // root.pluginState = newState
+                            pluginService.savePluginState(root.pluginId, "cache", newState);
                             
                             // Re-update internal properties from the new state
                             root.calendarData = json.data
