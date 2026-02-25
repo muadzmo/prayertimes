@@ -44,6 +44,7 @@ PluginComponent {
     property string lon:    "106.8456"
     property string method: ""
     property string school: "0"
+    property bool   use12H: false
     property bool   fetching:   false
     property int    retryCount: 0
 
@@ -81,7 +82,7 @@ PluginComponent {
             "-a", "Prayer Widget",
             "-u", "critical",
             // "-i", "prayer_times", (was supposed to be an icon "prayer_times" as mentioned in google's material icons, but it does not work)
-            root.nextName + " in " + mins + " min (at " + root.nextTime + ")"
+            root.nextName + " in " + mins + " min (at " + root.formatTime(root.nextTime) + ")"
         ]
         prayerNotifyProc.running = true
     }
@@ -117,6 +118,7 @@ PluginComponent {
         root.notifyThresholdSec = (Number(root.pluginData.notifyMinutes) || 15) * 60
         root.iconOnly           = root.pluginData.iconOnly === true
         root.showSeconds        = root.pluginData.showSeconds !== false
+        root.use12H = root.pluginData.use12H === "true" || root.pluginData.use12H === true
         root.pluginDataLoaded   = true
         debounceTimer.restart()
     }
@@ -209,6 +211,24 @@ PluginComponent {
     function timeToMinutes(hhmm) {
         var parts = hhmm.split(":")
         return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10)
+    }
+
+    function formatTime(time24h) {
+        if (!time24h || time24h === "") return ""
+        if (!root.use12H) return time24h
+
+        var parts = time24h.split(":")
+        if (parts.length < 2) return time24h
+
+        var hours = parseInt(parts[0], 10)
+        var minutes = parts[1]
+        var ampm = hours >= 12 ? "PM" : "AM"
+
+        hours = hours % 12
+        if (hours === 0) hours = 12
+        var hoursStr = hours < 10 ? "0" + hours : hours.toString()
+
+        return hoursStr + ":" + minutes + " " + ampm
     }
 
     function formatCountdown(totalSeconds) {
@@ -432,7 +452,7 @@ PluginComponent {
             StyledText {
                 visible: !root.iconOnly
                 text: root.nextTime !== ""
-                      ? (root.nextName + " " + root.nextTime)
+                      ? (root.nextName + " " + root.formatTime(root.nextTime))
                       : "Loading…"
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceText
@@ -585,7 +605,7 @@ PluginComponent {
                         }
 
                         StyledText {
-                            text: root.nextTime !== "" ? ("at  " + root.nextTime) : ""
+                            text: root.nextTime !== "" ? ("at  " + root.formatTime(root.nextTime)) : ""
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceVariantText
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -654,7 +674,7 @@ PluginComponent {
                             }
 
                             StyledText {
-                                text: modelData.time
+                                text: root.formatTime(modelData.time)
                                 font.pixelSize: Theme.fontSizeMedium
                                 font.weight: (isNext || isCurr) ? Font.Bold : Font.Normal
                                 color: isNext ? root.accentColor

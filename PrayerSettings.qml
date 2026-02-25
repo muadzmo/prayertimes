@@ -214,6 +214,13 @@ PluginSettings {
                 description: "Show seconds in the countdown timer. Disabling this also reduces CPU usage by ticking once per minute instead of every second."
                 defaultValue: false
             }
+
+            ToggleSetting {
+                settingKey: "use12H"
+                label: "12-Hour Format"
+                description: "Display prayer times in 12-hour format instead of 24-hour"
+                defaultValue: false
+            }
         }
     }
 
