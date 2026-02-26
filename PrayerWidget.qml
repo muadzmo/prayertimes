@@ -11,59 +11,48 @@ PluginComponent {
     id: root
     pluginId: "prayerTimes"
 
-    property string fajr:    ""
-    property string dhuhr:   ""
-    property string asr:     ""
+    // Prayer times data
+    property string fajr: ""
+    property string dhuhr: ""
+    property string asr: ""
     property string maghrib: ""
-    property string isha:    ""
-    property string imsak:   ""
+    property string isha: ""
+    property string imsak: ""
     property string sunrise: ""
     property string dateHijr: ""
     property string dateGreg: ""
 
+    // Current prayer period
     property string currName: ""
     property string nextName: ""
     property string nextTime: ""
-
-    // Cached seconds-since-midnight for the next prayer.
     property int nextTimeSec: 0
-
-    // Live countdown in whole seconds, driven by SystemClock every second.
     property int nextTotalSeconds: 0
 
-    // Edge-detection flag for the urgent zone.
-    // Lets updateCountdown() fire the notification exactly on the false→true
-    // transition instead of every tick inside the zone.
-    property bool _wasUrgent: false
+    // Settings properties. Bound directly to pluginData
+    property int refreshInterval: (Number(pluginData.refreshInterval) || 5) * 60000
+    property string lat: pluginData.lat || "-6.2088"
+    property string lon: pluginData.lon || "106.8456"
+    property string method: pluginData.method || ""
+    property string school: pluginData.school || "0"
+    property int notifyThresholdSec: (Number(pluginData.notifyMinutes) || 15) * 60
+    property bool iconOnly: pluginData.iconOnly ?? false
+    property bool showSeconds: pluginData.showSeconds ?? false
+    property bool use12H: pluginData.use12H ?? false
 
-    // Edge-detection flag for the exact prayer time.
+    // Internal state
+    property bool fetching: false
+    property int retryCount: 0
+    property bool _wasUrgent: false
     property bool _wasAtTime: false
 
-    property bool   pluginDataLoaded: false
-    property int    refreshInterval:  5 * 60000
-    property string lat:    "-6.2088"
-    property string lon:    "106.8456"
-    property string method: ""
-    property string school: "0"
-    property bool   use12H: false
-    property bool   fetching:   false
-    property int    retryCount: 0
+    // UI state properties
+    readonly property bool isUrgent: nextTotalSeconds > 0 && nextTotalSeconds <= notifyThresholdSec
+    readonly property color accentColor: Theme.primary
+    readonly property color accentBg: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.18)
+    readonly property color subtleBg: Qt.rgba(Theme.surfaceText.r, Theme.surfaceText.g, Theme.surfaceText.b, 0.05)
 
-    // Notification threshold read from settings (default 15 min).
-    // Expressed in seconds for direct comparison with the countdown.
-    property int notifyThresholdSec: 15 * 60
-
-    // When true, the horizontal bar pill shows only the prayer icon.
-    // When false, it shows the full layout: icon + next prayer + countdown.
-    property bool iconOnly: false
-
-    // When true, countdown displays HH:MM:SS / MM:SS.
-    // When false, seconds are hidden (HH:MM or "MM min") and the SystemClock
-    // is downgraded to minute precision — reducing per-second UI updates.
-    property bool showSeconds: true
-
-    // Two separate Process objects so a prayer notification and an error
-    // notification can never clobber each other.
+    // Notification processes
     Process {
         id: prayerNotifyProc
         running: false
@@ -74,8 +63,56 @@ PluginComponent {
         running: false
     }
 
-    // Builds the notification text at call time using the live countdown,
-    // so the displayed minutes are accurate even if delivery is delayed.
+    // Initialize on plugin service ready
+    onPluginServiceChanged: {
+        if (pluginService) {
+            fetchOrProcess()
+        }
+    }
+
+    // Debounce settings changes
+    onLatChanged: debounceTimer.restart()
+    onLonChanged: debounceTimer.restart()
+    onMethodChanged: debounceTimer.restart()
+    onSchoolChanged: debounceTimer.restart()
+
+    // Timers
+    Timer {
+        id: debounceTimer
+        interval: 500
+        repeat: false
+        onTriggered: fetchOrProcess()
+    }
+
+    Timer {
+        id: refreshTimer
+        interval: root.refreshInterval
+        running: pluginService !== null
+        repeat: true
+        triggeredOnStart: false
+        onTriggered: fetchOrProcess()
+    }
+
+    SystemClock {
+        id: clock
+        precision: root.showSeconds ? SystemClock.Seconds : SystemClock.Minutes
+        onDateChanged: {
+            if (root.nextTimeSec > 0)
+                updateCountdown()
+        }
+    }
+
+    Timer {
+        id: retryTimer
+        interval: 30000
+        repeat: false
+        onTriggered: {
+            root.fetching = false
+            fetchPrayerTimes()
+        }
+    }
+
+    // Notification functions
     function sendPrayerNotification() {
         var mins = Math.ceil(root.nextTotalSeconds / 60)
         prayerNotifyProc.command = [
@@ -109,63 +146,7 @@ PluginComponent {
         errorNotifyProc.running = true
     }
 
-    // Settings handler:
-    onPluginDataChanged: {
-        root.refreshInterval    = (Number(root.pluginData.refreshInterval) || 5) * 60000
-        root.lat                = root.pluginData.lat    || "-6.2088"
-        root.lon                = root.pluginData.lon    || "106.8456"
-        root.method             = root.pluginData.method || ""
-        root.school             = root.pluginData.school || "0"
-        root.notifyThresholdSec = (Number(root.pluginData.notifyMinutes) || 15) * 60
-        root.iconOnly           = root.pluginData.iconOnly === true
-        root.showSeconds        = root.pluginData.showSeconds !== false
-        root.use12H = root.pluginData.use12H === "true" || root.pluginData.use12H === true
-        root.pluginDataLoaded   = true
-        debounceTimer.restart()
-    }
-
-    // Timers:
-    Timer {
-        id: debounceTimer
-        interval: 500
-        repeat: false
-        onTriggered: fetchOrProcess()
-    }
-
-    Timer {
-        id: refreshTimer
-        interval: root.refreshInterval
-        running: root.pluginDataLoaded
-        repeat: true
-        triggeredOnStart: false
-        onTriggered: fetchOrProcess()
-    }
-
-    SystemClock {
-        id: clock
-        precision: root.showSeconds ? SystemClock.Seconds : SystemClock.Minutes
-        onDateChanged: {
-            if (root.nextTimeSec > 0)
-                updateCountdown()
-        }
-    }
-
-    Timer {
-        id: retryTimer
-        interval: 30000
-        repeat: false
-        onTriggered: {
-            root.fetching = false
-            fetchPrayerTimes()
-        }
-    }
-
-    // UI state:
-    readonly property bool  isUrgent:    root.nextTotalSeconds > 0 && root.nextTotalSeconds <= root.notifyThresholdSec
-    readonly property color accentColor: Theme.primary
-    readonly property color accentBg:    Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.18)
-    readonly property color subtleBg:    Qt.rgba(Theme.surfaceText.r, Theme.surfaceText.g, Theme.surfaceText.b, 0.05)
-
+    // Countdown and notification logic
     function updateCountdown() {
         var now    = clock.date
         var nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()
