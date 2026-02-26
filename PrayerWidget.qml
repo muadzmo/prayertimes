@@ -40,6 +40,16 @@ PluginComponent {
     property bool showSeconds: pluginData.showSeconds ?? false
     property bool use12H: pluginData.use12H ?? false
 
+    // Prayer time offset/tune settings (in minutes)
+    // Only for displayed properties: Imsak, Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha
+    property string tuneImsak: pluginData.tuneImsak || "0"
+    property string tuneFajr: pluginData.tuneFajr || "0"
+    property string tuneSunrise: pluginData.tuneSunrise || "0"
+    property string tuneDhuhr: pluginData.tuneDhuhr || "0"
+    property string tuneAsr: pluginData.tuneAsr || "0"
+    property string tuneMaghrib: pluginData.tuneMaghrib || "0"
+    property string tuneIsha: pluginData.tuneIsha || "0"
+
     // Internal state
     property bool fetching: false
     property int retryCount: 0
@@ -75,6 +85,15 @@ PluginComponent {
     onLonChanged: debounceTimer.restart()
     onMethodChanged: debounceTimer.restart()
     onSchoolChanged: debounceTimer.restart()
+    
+    // Debounce tune offset changes
+    onTuneImsakChanged: debounceTimer.restart()
+    onTuneFajrChanged: debounceTimer.restart()
+    onTuneSunriseChanged: debounceTimer.restart()
+    onTuneDhuhrChanged: debounceTimer.restart()
+    onTuneAsrChanged: debounceTimer.restart()
+    onTuneMaghribChanged: debounceTimer.restart()
+    onTuneIshaChanged: debounceTimer.restart()
 
     // Timers
     Timer {
@@ -185,6 +204,22 @@ PluginComponent {
         root._wasAtTime = atTime
     }
 
+    // Build tune string for API
+    // Format: Imsak,Fajr,Sunrise,Dhuhr,Asr,Maghrib,Sunset,Isha,Midnight
+    // Note: Sunset and Midnight are kept fixed at 0 (not user-configurable) to keep consistent
+    // with API expectations and avoid complications, since they are not displayed or used in countdown logic. 
+    function buildTuneString() {
+        return root.tuneImsak + "," +
+               root.tuneFajr + "," +
+               root.tuneSunrise + "," +
+               root.tuneDhuhr + "," +
+               root.tuneAsr + "," +
+               root.tuneMaghrib + "," +
+               "0" + "," +  // Sunset (always 0)
+               root.tuneIsha + "," +
+               "0"  // Midnight (always 0)
+    }
+
     // Utility functions
     function stripTimezone(timeStr) {
         return timeStr ? timeStr.split(" ")[0] : ""
@@ -248,8 +283,10 @@ PluginComponent {
         var calendarData  = pluginService.loadPluginState("prayerTimes", "calendarData",  [])
         var fetchedMethod = pluginService.loadPluginState("prayerTimes", "fetchedMethod", "")
         var fetchedSchool = pluginService.loadPluginState("prayerTimes", "fetchedSchool", "0")
+        var fetchedTune   = pluginService.loadPluginState("prayerTimes", "fetchedTune", "0,0,0,0,0,0,0,0,0")
         if (!calendarData || calendarData.length === 0) return null
         if (fetchedMethod !== root.method || fetchedSchool !== root.school) return null
+        if (fetchedTune !== buildTuneString()) return null
         var today = Qt.formatDate(new Date(), "dd-MM-yyyy")
         for (var i = 0; i < calendarData.length; i++) {
             var entry = calendarData[i]
@@ -305,6 +342,12 @@ PluginComponent {
                 + "&longitude=" + root.lon
                 + "&school="    + root.school
         if (root.method !== "") url += "&method=" + root.method
+        
+        // Add tune parameter for prayer time offsets
+        var tuneString = buildTuneString()
+        if (tuneString !== "0,0,0,0,0,0,0,0,0") {
+            url += "&tune=" + tuneString
+        }
 
         var xhr = new XMLHttpRequest()
         xhr.onreadystatechange = function() {
@@ -319,6 +362,7 @@ PluginComponent {
                         pluginService.savePluginState("prayerTimes", "calendarData",  json.data)
                         pluginService.savePluginState("prayerTimes", "fetchedMethod", root.method)
                         pluginService.savePluginState("prayerTimes", "fetchedSchool", root.school)
+                        pluginService.savePluginState("prayerTimes", "fetchedTune", buildTuneString())
                         var todayStr  = Qt.formatDate(new Date(), "dd-MM-yyyy")
                         var todayData = null
                         for (var i = 0; i < json.data.length; i++) {

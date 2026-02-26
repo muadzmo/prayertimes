@@ -116,6 +116,84 @@ PluginSettings {
         }
     }
 
+    StyledRect {
+        width: parent.width
+        height: offsetColumn.implicitHeight + Theme.spacingL * 2
+        radius: Theme.cornerRadius
+        color: Theme.surfaceContainerHigh
+
+        Column {
+            id: offsetColumn
+            anchors.fill: parent
+            anchors.margins: Theme.spacingL
+            spacing: Theme.spacingM
+
+            StyledText {
+                text: "Prayer Time Adjustments"
+                font.pixelSize: Theme.fontSizeMedium
+                font.weight: Font.Medium
+                color: Theme.surfaceText
+            }
+
+            StyledText {
+                text: "Fine-tune prayer times by adding or subtracting minutes. Use negative values (e.g., -2) to subtract time."
+                font.pixelSize: Theme.fontSizeSmall
+                color: Theme.surfaceVariantText
+                wrapMode: Text.WordWrap
+                width: parent.width
+            }
+
+            StringSetting {
+                settingKey: "tuneImsak"
+                label: "Imsak Offset (minutes)"
+                description: "Adjust Imsak time (e.g., 2 or -2)"
+                defaultValue: "0"
+            }
+
+            StringSetting {
+                settingKey: "tuneFajr"
+                label: "Fajr Offset (minutes)"
+                description: "Adjust Fajr time (e.g., 2 or -2)"
+                defaultValue: "0"
+            }
+
+            StringSetting {
+                settingKey: "tuneSunrise"
+                label: "Sunrise Offset (minutes)"
+                description: "Adjust Sunrise time (e.g., 2 or -2)"
+                defaultValue: "0"
+            }
+
+            StringSetting {
+                settingKey: "tuneDhuhr"
+                label: "Dhuhr Offset (minutes)"
+                description: "Adjust Dhuhr time (e.g., 2 or -2)"
+                defaultValue: "0"
+            }
+
+            StringSetting {
+                settingKey: "tuneAsr"
+                label: "Asr Offset (minutes)"
+                description: "Adjust Asr time (e.g., 2 or -2)"
+                defaultValue: "0"
+            }
+
+            StringSetting {
+                settingKey: "tuneMaghrib"
+                label: "Maghrib Offset (minutes)"
+                description: "Adjust Maghrib time (e.g., 2 or -2)"
+                defaultValue: "0"
+            }
+
+            StringSetting {
+                settingKey: "tuneIsha"
+                label: "Isha Offset (minutes)"
+                description: "Adjust Isha time (e.g., 2 or -2)"
+                defaultValue: "0"
+            }
+        }
+    }
+
     // ToDo: Fix the SelectionSetting not remembering the selected value under StyledRect object.
     // StyledRect {
     //     width: parent.width
