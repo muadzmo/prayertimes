@@ -42,7 +42,9 @@ PluginComponent {
 
     // Prayer time offset/tune settings (in minutes)
     // Only for displayed properties: Imsak, Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha
-    property string tuneImsak: pluginData.tuneImsak || "0"
+    //
+    // Imsak follows Fajr offset, otherwise it uses its own offset if set.
+    property string tuneImsak: (pluginData.tuneImsak !== "0") ? pluginData.tuneImsak : (pluginData.tuneFajr || "0")
     property string tuneFajr: pluginData.tuneFajr || "0"
     property string tuneSunrise: pluginData.tuneSunrise || "0"
     property string tuneDhuhr: pluginData.tuneDhuhr || "0"
@@ -85,7 +87,7 @@ PluginComponent {
     onLonChanged: debounceTimer.restart()
     onMethodChanged: debounceTimer.restart()
     onSchoolChanged: debounceTimer.restart()
-    
+
     // Debounce tune offset changes
     onTuneImsakChanged: debounceTimer.restart()
     onTuneFajrChanged: debounceTimer.restart()
@@ -207,7 +209,7 @@ PluginComponent {
     // Build tune string for API
     // Format: Imsak,Fajr,Sunrise,Dhuhr,Asr,Maghrib,Sunset,Isha,Midnight
     // Note: Sunset and Midnight are kept fixed at 0 (not user-configurable) to keep consistent
-    // with API expectations and avoid complications, since they are not displayed or used in countdown logic. 
+    // with API expectations and avoid complications, since they are not displayed or used in countdown logic.
     function buildTuneString() {
         return root.tuneImsak + "," +
                root.tuneFajr + "," +
@@ -342,7 +344,7 @@ PluginComponent {
                 + "&longitude=" + root.lon
                 + "&school="    + root.school
         if (root.method !== "") url += "&method=" + root.method
-        
+
         // Add tune parameter for prayer time offsets
         var tuneString = buildTuneString()
         if (tuneString !== "0,0,0,0,0,0,0,0,0") {
