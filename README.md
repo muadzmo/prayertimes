@@ -6,11 +6,10 @@ A DankMaterialShell widget for displaying Islamic prayer times using the Aladhan
 
 - Displays current and next prayer times in the Dank Bar
 - Popout view showing all prayer times (Fajr, Dhuhr, Asr, Maghrib, Isha) and dates (Hijri and Gregorian)
-- Pure QML/JavaScript — no external tools (`curl`, `jq`) required
-- **Persistent monthly caching**: Fetches a full month of data and stores it in plugin state, allowing for offline use
-- **Flexible Calculation**: Choose from multiple prayer time calculation methods and schools (Shafi/Hanafi)
-- **12/24-hour Format**: Support for both traditional 24-hour and 12-hour display formats
-- **System Notifications**: Uses `notify-send` for persistent notifications when a prayer time is approaching or reached
+- Pure QML/JavaScript — no external tools (`curl`, `jq`, `bash`) required
+- API data fetched via `XMLHttpRequest` and cached in-memory per day
+- Configurable refresh interval and location (latitude/longitude)
+- Toast notifications when a prayer time is reached
 
 ## Installation
 
