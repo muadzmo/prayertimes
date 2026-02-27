@@ -2,6 +2,8 @@
 
 A DankMaterialShell widget for displaying Islamic prayer times using the Aladhan API.
 
+<img width="405" height="523" alt="screenshot" src="https://github.com/user-attachments/assets/6d9d7142-67df-4d49-b0cf-acda55dbb7d6" />
+
 ## Features
 
 - Displays current and next prayer times in the Dank Bar
