@@ -131,6 +131,12 @@ PluginComponent {
             root.fetching = false
             fetchPrayerTimes()
         }
+      }
+
+    // File path for icon.svg
+    readonly property string iconPath: {
+        let fullUrl = Qt.resolvedUrl("icon.svg").toString();
+        return fullUrl.replace("file://", ""); 
     }
 
     // Notification functions
@@ -140,7 +146,7 @@ PluginComponent {
             "notify-send",
             "-a", "Prayer Widget",
             "-u", "critical",
-            // "-i", "prayer_times", (was supposed to be an icon "prayer_times" as mentioned in google's material icons, but it does not work)
+            "-i", iconPath,
             root.nextName + " in " + mins + " min (at " + root.formatTime(root.nextTime) + ")"
         ]
         prayerNotifyProc.running = true
@@ -151,7 +157,7 @@ PluginComponent {
             "notify-send",
             "-a", "Prayer Widget",
             "-u", "critical",
-            // "-i", "prayer_times", (was supposed to be an icon "prayer_times" as mentioned in google's material icons, but it does not work)
+            "-i", iconPath,
             "Time for " + root.nextName + ""
         ]
         prayerNotifyProc.running = true
@@ -162,6 +168,7 @@ PluginComponent {
             "notify-send",
             "-a", "Prayer Widget",
             "-u", "critical",
+            "-i", iconPath,
             message
         ]
         errorNotifyProc.running = true
