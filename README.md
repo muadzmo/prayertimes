@@ -11,7 +11,7 @@ A DankMaterialShell widget for displaying Islamic prayer times using the Aladhan
 - Displays current and next prayer times in the Dank Bar
 - Popout view showing all prayer times (Fajr, Dhuhr, Asr, Maghrib, Isha) and dates (Hijri and Gregorian)
 - Pure QML/JavaScript — no external tools (`curl`, `jq`, `bash`) required
-- API data fetched via `XMLHttpRequest` and cached in-memory per day
+- API data fetched via `XMLHttpRequest` and cached persistently for 7 days; changing coordinates, calculation method, school, or offsets invalidates the cache
 - Configurable refresh interval and location (latitude/longitude)
 - Toast notifications when a prayer time is reached
 
@@ -36,8 +36,10 @@ cp -r "prayerTimesPlugin" ~/.config/DankMaterialShell/plugins/
 ## Configuration
 
 - **Refresh Interval**: Set how often to update prayer times (1-60 minutes, default: 5 minutes)
-- **Latitude**: Set your location's latitude (e.g., -6.2000 for Jakarta)
-- **Longitude**: Set your location's longitude (e.g., 106.8166 for Jakarta)
+- **Latitude**: Set your location's latitude (default: -6.2088, Jakarta)
+- **Longitude**: Set your location's longitude (default: 106.8456, Jakarta)
+
+Location must be entered manually; the plugin does not detect it automatically. The **Auto** calculation method lets the API select a method for the entered coordinates.
 
 Access settings through the DMS plugins settings panel.
 

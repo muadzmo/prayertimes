@@ -26,9 +26,9 @@ PluginSettings {
     SelectionSetting {
         settingKey: "method"
         label: "Calculation Method"
-        description: "Method used to calculate prayer times. Leave on Auto to let the API choose based on your location."
+        description: "Auto selects a calculation method for the coordinates entered below. Location must be entered manually; it is not detected automatically."
         options: [
-            { label: "Auto (based on location)", value: "" },
+            { label: "Auto (method for entered coordinates)", value: "" },
             { label: "Jafari / Shia Ithna-Ashari", value: "0" },
             { label: "University of Islamic Sciences, Karachi", value: "1" },
             { label: "Islamic Society of North America", value: "2" },
@@ -89,15 +89,15 @@ PluginSettings {
             StringSetting {
                 settingKey: "lat"
                 label: "Latitude"
-                description: "Example: -6.2000"
-                defaultValue: "0.0"
+                description: "Enter latitude manually. Default: -6.2088 (Jakarta)"
+                defaultValue: "-6.2088"
             }
 
             StringSetting {
                 settingKey: "lon"
                 label: "Longitude"
-                description: "Example: 106.8166"
-                defaultValue: "0.0"
+                description: "Enter longitude manually. Default: 106.8456 (Jakarta)"
+                defaultValue: "106.8456"
             }
 
             StringSetting {
@@ -217,9 +217,9 @@ PluginSettings {
     //         SelectionSetting {
     //             settingKey: "method"
     //             label: "Calculation Method"
-    //             description: "Method used to calculate prayer times. Leave on Auto to let the API choose based on your location."
+    //             description: "Auto selects a calculation method for the coordinates entered below. Location must be entered manually; it is not detected automatically."
     //             options: [
-    //                 { label: "Auto (based on location)", value: "" },
+    //                 { label: "Auto (method for entered coordinates)", value: "" },
     //                 { label: "Jafari / Shia Ithna-Ashari", value: "0" },
     //                 { label: "University of Islamic Sciences, Karachi", value: "1" },
     //                 { label: "Islamic Society of North America", value: "2" },
