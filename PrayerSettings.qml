@@ -67,6 +67,25 @@ PluginSettings {
         defaultValue: "0"
     }
 
+    ToggleSetting {
+        settingKey: "notificationsEnabled"
+        label: "Enable Notifications"
+        description: "Show prayer reminders, prayer-time notifications, and API error notifications."
+        defaultValue: true
+    }
+
+    SelectionSetting {
+        settingKey: "notificationUrgency"
+        label: "Notification Priority"
+        description: "Priority for all Prayer Times notifications. How notifications appear depends on your desktop notification settings."
+        options: [
+            { label: "Low", value: "low" },
+            { label: "Normal", value: "normal" },
+            { label: "Critical", value: "critical" }
+        ]
+        defaultValue: "critical"
+    }
+
     StyledRect {
         width: parent.width
         height: locationColumn.implicitHeight + Theme.spacingL * 2

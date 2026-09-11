@@ -36,6 +36,8 @@ PluginComponent {
     property string method: pluginData.method || ""
     property string school: pluginData.school || "0"
     property int notifyThresholdSec: (Number(pluginData.notifyMinutes) || 15) * 60
+    property bool notificationsEnabled: pluginData.notificationsEnabled ?? true
+    property string notificationUrgency: ["low", "normal", "critical"].indexOf(pluginData.notificationUrgency) !== -1 ? pluginData.notificationUrgency : "critical"
     property bool iconOnly: pluginData.iconOnly ?? false
     property bool showSeconds: pluginData.showSeconds ?? false
     property bool use12H: pluginData.use12H ?? false
@@ -141,18 +143,24 @@ PluginComponent {
 
     // Notification functions
     function sendPrayerNotification() {
+        if (!root.notificationsEnabled)
+            return;
         var mins = Math.ceil(root.nextTotalSeconds / 60);
-        prayerNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", "critical", "-i", iconPath, root.nextName + " in " + mins + " min (at " + root.formatTime(root.nextTime) + ")"];
+        prayerNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", root.notificationUrgency, "-i", iconPath, root.nextName + " in " + mins + " min (at " + root.formatTime(root.nextTime) + ")"];
         prayerNotifyProc.running = true;
     }
 
     function sendPrayerTimeNotification() {
-        prayerNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", "critical", "-i", iconPath, "Time for " + root.nextName + ""];
+        if (!root.notificationsEnabled)
+            return;
+        prayerNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", root.notificationUrgency, "-i", iconPath, "Time for " + root.nextName + ""];
         prayerNotifyProc.running = true;
     }
 
     function sendErrorNotification(message) {
-        errorNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", "critical", "-i", iconPath, message];
+        if (!root.notificationsEnabled)
+            return;
+        errorNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", root.notificationUrgency, "-i", iconPath, message];
         errorNotifyProc.running = true;
     }
 
@@ -175,7 +183,7 @@ PluginComponent {
         var todayKey = Qt.formatDate(clock.date, "yyyy-MM-dd");
         var baseKey = todayKey + "|" + root.nextName + "|" + root.nextTime;
 
-        if (urgent && !root._wasUrgent) {
+        if (root.notificationsEnabled && urgent && !root._wasUrgent) {
             var lastNotified = pluginService.loadPluginState("prayerTimes", "lastNotifiedThresholdKey", "");
             if (lastNotified !== baseKey) {
                 pluginService.savePluginState("prayerTimes", "lastNotifiedThresholdKey", baseKey);
@@ -184,7 +192,7 @@ PluginComponent {
         }
 
         var atTime = (rawDiff <= 0 && rawDiff > -60);
-        if (atTime && !root._wasAtTime) {
+        if (root.notificationsEnabled && atTime && !root._wasAtTime) {
             var lastAtTime = pluginService.loadPluginState("prayerTimes", "lastNotifiedAtKey", "");
             if (lastAtTime !== baseKey) {
                 pluginService.savePluginState("prayerTimes", "lastNotifiedAtKey", baseKey);
@@ -192,8 +200,8 @@ PluginComponent {
             }
         }
 
-        root._wasUrgent = urgent;
-        root._wasAtTime = atTime;
+        root._wasUrgent = root.notificationsEnabled && urgent;
+        root._wasAtTime = root.notificationsEnabled && atTime;
     }
 
     // Build tune string for API
