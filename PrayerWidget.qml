@@ -22,6 +22,11 @@ PluginComponent {
     property string dateHijr: ""
     property string dateGreg: ""
 
+    // Fasting texts
+    property string todayFastingReason: ""
+    property string tomorrowFastingReason: ""
+    property string barFastingText: ""
+
     // Current prayer period
     property string currName: ""
     property string nextName: ""
@@ -29,7 +34,10 @@ PluginComponent {
     property int nextTimeSec: 0
     property int nextTotalSeconds: 0
 
-    // Settings properties. Bound directly to pluginData
+    // Settings properties
+    property string language: pluginData.language || "en"
+    readonly property bool isAr: root.language === "ar"
+
     property int refreshInterval: (Number(pluginData.refreshInterval) || 5) * 60000
     property string lat: pluginData.lat || "-6.2088"
     property string lon: pluginData.lon || "106.8456"
@@ -42,10 +50,13 @@ PluginComponent {
     property bool showSeconds: pluginData.showSeconds ?? false
     property bool use12H: pluginData.use12H ?? false
 
-    // Prayer time offset/tune settings (in minutes)
-    // Only for displayed properties: Imsak, Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha
-    //
-    // Imsak follows Fajr offset, otherwise it uses its own offset if set.
+    // Fasting Reminders Settings
+    property bool fastingReminderEveEnabled: pluginData.fastingReminderEveEnabled ?? true
+    property int fastingReminderEveHour: parseInt(pluginData.fastingReminderEveHour, 10) || 21
+    property bool fastingReminderMorningEnabled: pluginData.fastingReminderMorningEnabled ?? true
+    property int fastingReminderMorningHour: parseInt(pluginData.fastingReminderMorningHour, 10) || 4
+
+    // Offsets
     property string tuneImsak: (pluginData.tuneImsak !== "0") ? pluginData.tuneImsak : (pluginData.tuneFajr || "0")
     property string tuneFajr: pluginData.tuneFajr || "0"
     property string tuneSunrise: pluginData.tuneSunrise || "0"
@@ -60,37 +71,29 @@ PluginComponent {
     property bool _wasUrgent: false
     property bool _wasAtTime: false
 
-    // UI state properties
     readonly property bool isUrgent: nextTotalSeconds > 0 && nextTotalSeconds <= notifyThresholdSec
     readonly property color accentColor: Theme.primary
     readonly property color accentBg: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.18)
     readonly property color subtleBg: Qt.rgba(Theme.surfaceText.r, Theme.surfaceText.g, Theme.surfaceText.b, 0.05)
 
     // Notification processes
-    Process {
-        id: prayerNotifyProc
-        running: false
-    }
+    Process { id: prayerNotifyProc; running: false }
+    Process { id: errorNotifyProc; running: false }
+    Process { id: fastingNotifyProc; running: false }
 
-    Process {
-        id: errorNotifyProc
-        running: false
-    }
-
-    // Initialize on plugin service ready
     onPluginServiceChanged: {
-        if (pluginService) {
-            fetchOrProcess();
-        }
+        if (pluginService) fetchOrProcess();
     }
 
-    // Debounce settings changes
     onLatChanged: debounceTimer.restart()
     onLonChanged: debounceTimer.restart()
     onMethodChanged: debounceTimer.restart()
     onSchoolChanged: debounceTimer.restart()
+    onLanguageChanged: {
+        var currentData = getTodayDataFromState();
+        if (currentData) processPrayerData(currentData);
+    }
 
-    // Debounce tune offset changes
     onTuneImsakChanged: debounceTimer.restart()
     onTuneFajrChanged: debounceTimer.restart()
     onTuneSunriseChanged: debounceTimer.restart()
@@ -99,7 +102,6 @@ PluginComponent {
     onTuneMaghribChanged: debounceTimer.restart()
     onTuneIshaChanged: debounceTimer.restart()
 
-    // Timers
     Timer {
         id: debounceTimer
         interval: 500
@@ -122,6 +124,7 @@ PluginComponent {
         onDateChanged: {
             if (root.nextTimeSec > 0)
                 updateCountdown();
+            checkAndTriggerFastingReminders();
         }
     }
 
@@ -135,49 +138,199 @@ PluginComponent {
         }
     }
 
-    // File path for icon.svg
     readonly property string iconPath: {
         let fullUrl = Qt.resolvedUrl("icon.svg").toString();
         return fullUrl.replace("file://", "");
     }
 
-    // Notification functions
+    function getPrayerName(standardKey) {
+        if (!root.isAr) return standardKey;
+        var names = {
+            "Imsak": "الإمساك", "Fajr": "الفجر", "Sunrise": "الشروق",
+            "Dhuhr": "الظهر", "Asr": "العصر", "Maghrib": "المغرب", "Isha": "العشاء"
+        };
+        return names[standardKey] || standardKey;
+    }
+
     function sendPrayerNotification() {
-        if (!root.notificationsEnabled)
-            return;
+        if (!root.notificationsEnabled) return;
         var mins = Math.ceil(root.nextTotalSeconds / 60);
-        prayerNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", root.notificationUrgency, "-i", iconPath, root.nextName + " in " + mins + " min (at " + root.formatTime(root.nextTime) + ")"];
+        var title = root.isAr ? "اقتراب موعد الصلاة" : "Prayer Reminder";
+        var body = root.isAr ?
+            (getPrayerName(root.nextName) + " خلال " + mins + " دقيقة (الساعة " + root.formatTime(root.nextTime) + ")") :
+            (root.nextName + " in " + mins + " min (at " + root.formatTime(root.nextTime) + ")");
+
+        prayerNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", root.notificationUrgency, "-i", iconPath, title, body];
         prayerNotifyProc.running = true;
     }
 
     function sendPrayerTimeNotification() {
-        if (!root.notificationsEnabled)
-            return;
-        prayerNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", root.notificationUrgency, "-i", iconPath, "Time for " + root.nextName + ""];
+        if (!root.notificationsEnabled) return;
+        var title = root.isAr ? "حان وقت الصلاة" : "Prayer Time";
+        var body = root.isAr ? ("حان الآن موعد أذان " + getPrayerName(root.nextName)) : ("Time for " + root.nextName);
+
+        prayerNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", root.notificationUrgency, "-i", iconPath, title, body];
         prayerNotifyProc.running = true;
     }
 
+    function sendFastingNotification(title, message) {
+        if (!root.notificationsEnabled) return;
+        fastingNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", "normal", "-i", iconPath, title, message];
+        fastingNotifyProc.running = true;
+    }
+
     function sendErrorNotification(message) {
-        if (!root.notificationsEnabled)
-            return;
-        errorNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", root.notificationUrgency, "-i", iconPath, message];
+        if (!root.notificationsEnabled) return;
+        errorNotifyProc.command = ["notify-send", "-a", "Prayer Widget", "-u", root.notificationUrgency, "-i", iconPath, "Prayer Widget Error", message];
         errorNotifyProc.running = true;
     }
 
-    // Countdown and notification logic
+    function checkFastingDay(dayEntry) {
+        if (!dayEntry || !dayEntry.date || !dayEntry.date.hijri)
+            return null;
+
+        var hijri = dayEntry.date.hijri;
+        var hDay = parseInt(hijri.day, 10);
+        var hMonth = hijri.month ? parseInt(hijri.month.number, 10) : 0;
+        var greg = dayEntry.date.gregorian;
+        var dayName = (greg && greg.weekday) ? greg.weekday.en : "";
+
+        var reasonsAr = [];
+        var reasonsEn = [];
+
+        // 1. Weekly: Monday & Thursday
+        if (dayName === "Monday") {
+            reasonsAr.push("الإثنين");
+            reasonsEn.push("Monday");
+        } else if (dayName === "Thursday") {
+            reasonsAr.push("الخميس");
+            reasonsEn.push("Thursday");
+        }
+
+        // 2. White Days (13, 14, 15) - Excluding 13 Dhu al-Hijjah
+        if (hDay === 13 || hDay === 14 || hDay === 15) {
+            if (!(hMonth === 12 && hDay === 13)) {
+                reasonsAr.push("الأيام البيض (" + hDay + ")");
+                reasonsEn.push("White Day (" + hDay + ")");
+            }
+        }
+
+        // 3. Annual Days
+        if (hMonth === 12 && hDay === 9) {
+            reasonsAr.push("يوم عرفة");
+            reasonsEn.push("Day of Arafah");
+        }
+        if (hMonth === 1 && hDay === 9) {
+            reasonsAr.push("تاسوعاء");
+            reasonsEn.push("Tasu'ah");
+        }
+        if (hMonth === 1 && hDay === 10) {
+            reasonsAr.push("عاشوراء");
+            reasonsEn.push("Ashura");
+        }
+
+        if (reasonsAr.length === 0)
+            return null;
+
+        return {
+            textAr: reasonsAr.join(" و "),
+            textEn: reasonsEn.join(" & ")
+        };
+    }
+
+    function checkAndTriggerFastingReminders() {
+        if (!root.notificationsEnabled) return;
+
+        var calendarData = pluginService.loadPluginState("prayerTimes", "calendarData", []);
+        if (!calendarData || calendarData.length === 0) return;
+
+        var now = clock.date;
+        var currentHour = now.getHours();
+
+        // 1. Night Before Reminder
+        if (root.fastingReminderEveEnabled && currentHour === root.fastingReminderEveHour) {
+            var tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            var tomorrowStr = Qt.formatDate(tomorrow, "dd-MM-yyyy");
+
+            var tomorrowData = null;
+            for (var i = 0; i < calendarData.length; i++) {
+                if (calendarData[i].date && calendarData[i].date.gregorian && calendarData[i].date.gregorian.date === tomorrowStr) {
+                    tomorrowData = calendarData[i];
+                    break;
+                }
+            }
+
+            if (tomorrowData) {
+                var fastingEve = checkFastingDay(tomorrowData);
+                if (fastingEve) {
+                    var eveKey = tomorrowStr + "|eve|" + fastingEve.textEn;
+                    var lastEveKey = pluginService.loadPluginState("prayerTimes", "lastFastingEveKey", "");
+                    if (lastEveKey !== eveKey) {
+                        pluginService.savePluginState("prayerTimes", "lastFastingEveKey", eveKey);
+                        var titleEve = root.isAr ? "تذكير: صيام سُنّة غداً" : "Sunnah Fasting Tomorrow";
+                        var bodyEve = root.isAr ? ("غداً إن شاء الله صيام: " + fastingEve.textAr + ". جهّز نيتك وسحورك.") : ("Tomorrow: " + fastingEve.textEn + ". Don't forget your intention and Suhur.");
+                        sendFastingNotification(titleEve, bodyEve);
+                    }
+                }
+            }
+        }
+
+        // 2. Fasting Day Morning Reminder
+        if (root.fastingReminderMorningEnabled && currentHour === root.fastingReminderMorningHour) {
+            var todayStr = Qt.formatDate(now, "dd-MM-yyyy");
+            var todayData = null;
+            for (var j = 0; j < calendarData.length; j++) {
+                if (calendarData[j].date && calendarData[j].date.gregorian && calendarData[j].date.gregorian.date === todayStr) {
+                    todayData = calendarData[j];
+                    break;
+                }
+            }
+
+            if (todayData) {
+                var fastingToday = checkFastingDay(todayData);
+                if (fastingToday) {
+                    var todayKey = todayStr + "|morning|" + fastingToday.textEn;
+                    var lastMorningKey = pluginService.loadPluginState("prayerTimes", "lastFastingMorningKey", "");
+                    if (lastMorningKey !== todayKey) {
+                        pluginService.savePluginState("prayerTimes", "lastFastingMorningKey", todayKey);
+                        var titleMorning = root.isAr ? "اليوم يوم صيام مبارك" : "Fasting Day Reminder";
+                        var bodyMorning = root.isAr ? ("اليوم صيام: " + fastingToday.textAr + ". تقبل الله طاعتكم.") : ("Today is: " + fastingToday.textEn + ". May Allah accept your fast.");
+                        sendFastingNotification(titleMorning, bodyMorning);
+                    }
+                }
+            }
+        }
+    }
+
     function updateCountdown() {
         var now = clock.date;
         var nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
-        // rawDiff = signed distance (negative means prayer already passed).
-        // diff    = always-positive countdown (after midnight wrap).
-        // We need rawDiff later to detect the exact prayer-time moment.
         var rawDiff = root.nextTimeSec - nowSec;
         var diff = rawDiff;
-        if (diff < 0)
-            diff += 86400;        // midnight wraparound (Isha → Fajr)
+        if (diff < 0) diff += 86400;
 
         root.nextTotalSeconds = diff;
+
+        var dhuhrSec = timeToMinutes(root.dhuhr) * 60;
+        var maghribSec = timeToMinutes(root.maghrib) * 60;
+
+        if (nowSec < dhuhrSec) {
+            if (root.todayFastingReason !== "") {
+                root.barFastingText = (root.isAr ? "صيام اليوم: " : "Today Fast: ") + root.todayFastingReason;
+            } else {
+                root.barFastingText = "";
+            }
+        } else if (nowSec >= maghribSec) {
+            if (root.tomorrowFastingReason !== "") {
+                root.barFastingText = (root.isAr ? "صيام الغد: " : "Tomorrow Fast: ") + root.tomorrowFastingReason;
+            } else {
+                root.barFastingText = "";
+            }
+        } else {
+            root.barFastingText = "";
+        }
 
         var urgent = diff > 0 && diff <= root.notifyThresholdSec;
         var todayKey = Qt.formatDate(clock.date, "yyyy-MM-dd");
@@ -204,109 +357,63 @@ PluginComponent {
         root._wasAtTime = root.notificationsEnabled && atTime;
     }
 
-    // Build tune string for API
-    // Format: Imsak,Fajr,Sunrise,Dhuhr,Asr,Maghrib,Sunset,Isha,Midnight
-    // Note: Sunset and Midnight are kept fixed at 0 (not user-configurable) to keep consistent
-    // with API expectations and avoid complications, since they are not displayed or used in countdown logic.
     function buildTuneString() {
-        return root.tuneImsak + "," + root.tuneFajr + "," + root.tuneSunrise + "," + root.tuneDhuhr + "," + root.tuneAsr + "," + root.tuneMaghrib + "," + "0" + "," +  // Sunset (always 0)
-        root.tuneIsha + "," + "0";  // Midnight (always 0)
+        return root.tuneImsak + "," + root.tuneFajr + "," + root.tuneSunrise + "," + root.tuneDhuhr + "," + root.tuneAsr + "," + root.tuneMaghrib + "," + "0" + "," + root.tuneIsha + "," + "0";
     }
 
-    // Utility functions
     function stripTimezone(timeStr) {
         return timeStr ? timeStr.split(" ")[0] : "";
     }
 
     function timeToMinutes(hhmm) {
+        if (!hhmm) return 0;
         var parts = hhmm.split(":");
         return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
     }
 
     function formatTime(time24h) {
-        if (!time24h || time24h === "")
-            return "";
-        if (!root.use12H)
-            return time24h;
+        if (!time24h) return "";
+        if (!root.use12H) return time24h;
 
         var parts = time24h.split(":");
-        if (parts.length < 2)
-            return time24h;
+        if (parts.length < 2) return time24h;
 
         var hours = parseInt(parts[0], 10);
         var minutes = parts[1];
-        var ampm = hours >= 12 ? "PM" : "AM";
+        var ampm = root.isAr ? (hours >= 12 ? "م" : "ص") : (hours >= 12 ? "PM" : "AM");
 
         hours = hours % 12;
-        if (hours === 0)
-            hours = 12;
+        if (hours === 0) hours = 12;
         var hoursStr = hours < 10 ? "0" + hours : hours.toString();
-
         return hoursStr + ":" + minutes + " " + ampm;
     }
 
     function formatCountdown(totalSeconds) {
         if (totalSeconds <= 0)
-            return root.showSeconds ? "00:00" : "0 min";
+            return root.showSeconds ? "00:00" : (root.isAr ? "0 دقيقة" : "0 min");
         var h = Math.floor(totalSeconds / 3600);
         var m = Math.floor((totalSeconds % 3600) / 60);
         var s = totalSeconds % 60;
+        var mm = (m < 10 ? "0" : "") + m;
+        var ss = (s < 10 ? "0" : "") + s;
+        var hh = (h < 10 ? "0" : "") + h;
+
         if (root.showSeconds) {
-            var mm = (m < 10 ? "0" : "") + m;
-            var ss = (s < 10 ? "0" : "") + s;
-            if (h > 0)
-                return (h < 10 ? "0" : "") + h + ":" + mm + ":" + ss;
+            if (h > 0) return hh + ":" + mm + ":" + ss;
             return mm + ":" + ss;
         } else {
-            var mm2 = (m < 10 ? "0" : "") + m;
-            if (h > 0)
-                return (h < 10 ? "0" : "") + h + ":" + mm2;
-            return m + " min";
+            if (h > 0) return hh + ":" + mm;
+            return m + (root.isAr ? " دقيقة" : " min");
         }
     }
 
     function determinePrayerPeriod(nowStr, fajrT, dhuhrT, asrT, maghribT, ishaT) {
-        if (nowStr < fajrT)
-            return {
-                currName: "Isha",
-                currTime: ishaT,
-                nextName: "Fajr",
-                nextTime: fajrT
-            };
-        if (nowStr < dhuhrT)
-            return {
-                currName: "Fajr",
-                currTime: fajrT,
-                nextName: "Dhuhr",
-                nextTime: dhuhrT
-            };
-        if (nowStr < asrT)
-            return {
-                currName: "Dhuhr",
-                currTime: dhuhrT,
-                nextName: "Asr",
-                nextTime: asrT
-            };
-        if (nowStr < maghribT)
-            return {
-                currName: "Asr",
-                currTime: asrT,
-                nextName: "Maghrib",
-                nextTime: maghribT
-            };
-        if (nowStr < ishaT)
-            return {
-                currName: "Maghrib",
-                currTime: maghribT,
-                nextName: "Isha",
-                nextTime: ishaT
-            };
-        return {
-            currName: "Isha",
-            currTime: ishaT,
-            nextName: "Fajr",
-            nextTime: fajrT
-        };
+        if (nowStr < fajrT) return { currName: "Isha", currTime: ishaT, nextName: "Fajr", nextTime: fajrT };
+        if (nowStr < dhuhrT) return { currName: "Fajr", currTime: fajrT, nextName: "Dhuhr", nextTime: dhuhrT };
+        if (nowStr < asrT) return { currName: "Dhuhr", currTime: dhuhrT, nextName: "Asr", nextTime: asrT };
+        if (nowStr < maghribT) return { currName: "Asr", currTime: asrT, nextName: "Maghrib", nextTime: maghribT };
+        if (nowStr < ishaT) return { currName: "Maghrib", currTime: maghribT, nextName: "Isha", nextTime: ishaT };
+        return { currName: "Isha", currTime: ishaT, nextName: "Fajr", nextTime: fajrT };
     }
 
     function cacheMatchesSettings() {
@@ -315,16 +422,13 @@ PluginComponent {
         var fetchedMethod = pluginService.loadPluginState("prayerTimes", "fetchedMethod", "");
         var fetchedSchool = pluginService.loadPluginState("prayerTimes", "fetchedSchool", "0");
         var fetchedTune = pluginService.loadPluginState("prayerTimes", "fetchedTune", "0,0,0,0,0,0,0,0,0");
-        // Missing coordinates invalidate caches created by older plugin versions.
         return fetchedLat === root.lat && fetchedLon === root.lon && fetchedMethod === root.method && fetchedSchool === root.school && fetchedTune === buildTuneString();
     }
 
     function getTodayDataFromState() {
-        if (!cacheMatchesSettings())
-            return null;
+        if (!cacheMatchesSettings()) return null;
         var calendarData = pluginService.loadPluginState("prayerTimes", "calendarData", []);
-        if (!calendarData || calendarData.length === 0)
-            return null;
+        if (!calendarData || calendarData.length === 0) return null;
         var today = Qt.formatDate(new Date(), "dd-MM-yyyy");
         for (var i = 0; i < calendarData.length; i++) {
             var entry = calendarData[i];
@@ -335,11 +439,9 @@ PluginComponent {
     }
 
     function tryFallbackFromState() {
-        if (!cacheMatchesSettings())
-            return;
+        if (!cacheMatchesSettings()) return;
         var calendarData = pluginService.loadPluginState("prayerTimes", "calendarData", []);
-        if (!calendarData || calendarData.length === 0)
-            return;
+        if (!calendarData || calendarData.length === 0) return;
         var today = Qt.formatDate(new Date(), "dd-MM-yyyy");
         for (var i = 0; i < calendarData.length; i++) {
             var entry = calendarData[i];
@@ -352,31 +454,23 @@ PluginComponent {
     }
 
     function fetchOrProcess() {
-        if (!pluginService)
-            return;
+        if (!pluginService) return;
         var todayData = getTodayDataFromState();
-        if (todayData)
-            processPrayerData(todayData);
-        else
-            fetchPrayerTimes();
+        if (todayData) processPrayerData(todayData);
+        else fetchPrayerTimes();
     }
 
-    // Force a fresh API fetch, discarding the cache completely.
     function forceRefresh() {
-        if (root.fetching)
-            return;
+        if (root.fetching) return;
         pluginService.savePluginState("prayerTimes", "calendarData", []);
         pluginService.savePluginState("prayerTimes", "fetchedMethod", "__force__");
         fetchPrayerTimes();
     }
 
-    // 7-day cache fetch:
     function fetchPrayerTimes() {
-        if (root.fetching)
-            return;
+        if (root.fetching) return;
         root.fetching = true;
 
-        // Keep response metadata tied to the settings used for this request.
         var requestLat = root.lat;
         var requestLon = root.lon;
         var requestMethod = root.method;
@@ -391,21 +485,14 @@ PluginComponent {
         var toStr = Qt.formatDate(toDate, "dd-MM-yyyy");
 
         var url = "https://api.aladhan.com/v1/calendar/from/" + fromStr + "/to/" + toStr + "?latitude=" + requestLat + "&longitude=" + requestLon + "&school=" + requestSchool;
-        if (requestMethod !== "")
-            url += "&method=" + requestMethod;
-
-        // Add tune parameter for prayer time offsets
-        if (tuneString !== "0,0,0,0,0,0,0,0,0") {
-            url += "&tune=" + tuneString;
-        }
+        if (requestMethod !== "") url += "&method=" + requestMethod;
+        if (tuneString !== "0,0,0,0,0,0,0,0,0") url += "&tune=" + tuneString;
 
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function () {
-            if (xhr.readyState !== XMLHttpRequest.DONE)
-                return;
+            if (xhr.readyState !== XMLHttpRequest.DONE) return;
             root.fetching = false;
 
-            // A settings change may have occurred while this request was pending.
             if (requestLat !== root.lat || requestLon !== root.lon || requestMethod !== root.method || requestSchool !== root.school || tuneString !== buildTuneString()) {
                 root.retryCount = 0;
                 fetchOrProcess();
@@ -423,6 +510,7 @@ PluginComponent {
                         pluginService.savePluginState("prayerTimes", "fetchedMethod", requestMethod);
                         pluginService.savePluginState("prayerTimes", "fetchedSchool", requestSchool);
                         pluginService.savePluginState("prayerTimes", "fetchedTune", tuneString);
+
                         var todayStr = Qt.formatDate(new Date(), "dd-MM-yyyy");
                         var todayData = null;
                         for (var i = 0; i < json.data.length; i++) {
@@ -434,24 +522,19 @@ PluginComponent {
                         processPrayerData(todayData || json.data[0]);
                     } else {
                         var fb = getTodayDataFromState();
-                        if (fb)
-                            processPrayerData(fb);
-                        else
-                            sendErrorNotification("API error: " + (json.status || "Unknown"));
+                        if (fb) processPrayerData(fb);
+                        else sendErrorNotification("API error: " + (json.status || "Unknown"));
                     }
                 } catch (e) {
                     var cached = getTodayDataFromState();
-                    if (cached)
-                        processPrayerData(cached);
-                    else
-                        sendErrorNotification("JSON parse error: " + e.message);
+                    if (cached) processPrayerData(cached);
+                    else sendErrorNotification("JSON parse error: " + e.message);
                 }
             } else if (xhr.status === 429) {
                 root.retryCount++;
                 var backoff = Math.min(30000 * Math.pow(2, root.retryCount - 1), 600000);
                 var rateFb = getTodayDataFromState();
-                if (rateFb)
-                    processPrayerData(rateFb);
+                if (rateFb) processPrayerData(rateFb);
                 retryTimer.interval = backoff;
                 root.fetching = true;
                 retryTimer.restart();
@@ -463,7 +546,6 @@ PluginComponent {
         xhr.send();
     }
 
-    // Prayer data processing
     function processPrayerData(data) {
         var timings = data.timings;
         var dateInfo = data.date;
@@ -484,17 +566,39 @@ PluginComponent {
 
         root.dateGreg = dateInfo.readable || "";
         if (dateInfo.hijri) {
-            root.dateHijr = dateInfo.hijri.day + " " + dateInfo.hijri.month.en + " " + dateInfo.hijri.year;
+            var mName = root.isAr ? (dateInfo.hijri.month.ar || dateInfo.hijri.month.en) : dateInfo.hijri.month.en;
+            root.dateHijr = dateInfo.hijri.day + " " + mName + " " + dateInfo.hijri.year;
+        }
+
+        // 1. فحص صيام اليوم
+        var fastCheckToday = checkFastingDay(data);
+        root.todayFastingReason = fastCheckToday ? (root.isAr ? fastCheckToday.textAr : fastCheckToday.textEn) : "";
+
+        // 2. فحص صيام الغد من الـ Calendar Data المخزنة
+        var calendarData = pluginService.loadPluginState("prayerTimes", "calendarData", []);
+        var tomorrow = new Date(clock.date);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        var tomorrowStr = Qt.formatDate(tomorrow, "dd-MM-yyyy");
+
+        var tomorrowData = null;
+        for (var i = 0; i < calendarData.length; i++) {
+            if (calendarData[i].date && calendarData[i].date.gregorian && calendarData[i].date.gregorian.date === tomorrowStr) {
+                tomorrowData = calendarData[i];
+                break;
+            }
+        }
+        if (tomorrowData) {
+            var fastCheckTomorrow = checkFastingDay(tomorrowData);
+            root.tomorrowFastingReason = fastCheckTomorrow ? (root.isAr ? fastCheckTomorrow.textAr : fastCheckTomorrow.textEn) : "";
+        } else {
+            root.tomorrowFastingReason = "";
         }
 
         var nowStr = Qt.formatTime(clock.date, "HH:mm");
         var period = determinePrayerPeriod(nowStr, fajrTime, dhuhrTime, asrTime, maghribTime, ishaTime);
 
-        // Cache next-prayer seconds-since-midnight for fast countdown math
         root.nextTimeSec = timeToMinutes(period.nextTime) * 60;
 
-        // Reset edge detection when the prayer cycle advances so the
-        // notification can fire fresh for the new upcoming prayer.
         if (root.nextName !== period.nextName) {
             root._wasUrgent = false;
             root._wasAtTime = false;
@@ -504,24 +608,20 @@ PluginComponent {
         root.nextName = period.nextName;
         root.nextTime = period.nextTime;
 
-        // Immediate UI sync — don't wait for the next SystemClock tick.
         updateCountdown();
+        checkAndTriggerFastingReminders();
     }
 
-    // Prayer icons:
     property var prayerIcons: ({
-            "Fajr": "bedtime",
-            "Dhuhr": "wb_sunny",
-            "Asr": "light_mode",
-            "Maghrib": "wb_twilight",
-            "Isha": "bedtime"
-        })
+        "Fajr": "bedtime", "Dhuhr": "wb_sunny", "Asr": "light_mode",
+        "Maghrib": "wb_twilight", "Isha": "bedtime"
+    })
 
     function getPrayerIcon(name) {
         return root.prayerIcons[name] || "mosque";
     }
 
-    // Horizontal bar pill:
+    // Horizontal bar pill
     horizontalBarPill: Component {
         Row {
             spacing: root.iconOnly ? 0 : Theme.spacingXS
@@ -536,7 +636,7 @@ PluginComponent {
 
             StyledText {
                 visible: !root.iconOnly
-                text: root.nextTime !== "" ? (root.nextName + " " + root.formatTime(root.nextTime)) : "Loading…"
+                text: root.nextTime !== "" ? (root.getPrayerName(root.nextName) + " " + root.formatTime(root.nextTime)) : (root.isAr ? "جار التحميل…" : "Loading…")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
@@ -563,10 +663,41 @@ PluginComponent {
                 anchors.verticalCenter: parent.verticalCenter
                 width: (!root.iconOnly && root.nextTime !== "") ? implicitWidth : 0
             }
+
+            // علامة الصيام في الـ Topbar (تختفي من الظهر حتى المغرب)
+            Row {
+                visible: !root.iconOnly && root.barFastingText !== ""
+                spacing: Theme.spacingXS
+                anchors.verticalCenter: parent.verticalCenter
+
+                StyledText {
+                    text: "·"
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceVariantText
+                    leftPadding: 2
+                    rightPadding: 2
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                DankIcon {
+                    name: "wb_twilight"
+                    size: Theme.iconSize - 8
+                    color: root.accentColor
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                StyledText {
+                    text: root.barFastingText
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Font.Medium
+                    color: root.accentColor
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
         }
     }
 
-    // Vertical bar pill:
+    // Vertical bar pill
     verticalBarPill: Component {
         Column {
             spacing: 2
@@ -585,15 +716,23 @@ PluginComponent {
                 color: root.isUrgent ? root.accentColor : Theme.surfaceText
                 anchors.horizontalCenter: parent.horizontalCenter
             }
+
+            DankIcon {
+                visible: root.barFastingText !== ""
+                name: "wb_twilight"
+                size: Theme.iconSize - 8
+                color: root.accentColor
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
         }
     }
 
-    // Popout panel:
+    // Popout panel
     popoutContent: Component {
         Item {
             id: popoutRoot
-            width: 260
-            implicitWidth: 260
+            width: 270
+            implicitWidth: 270
             implicitHeight: content.implicitHeight + Theme.spacingM * 2
 
             Column {
@@ -602,6 +741,7 @@ PluginComponent {
                 anchors.fill: parent
                 anchors.margins: Theme.spacingM
 
+                // Header with dates & refresh button
                 Item {
                     width: parent.width
                     height: Math.max(dateCol.implicitHeight, refreshPill.height)
@@ -652,7 +792,77 @@ PluginComponent {
                     }
                 }
 
-                // Countdown card. Themed with accent color
+                // 1. كارت صيام اليوم (يظل موجوداً في النافذة الكبيرة طوال اليوم)
+                Rectangle {
+                    visible: root.todayFastingReason !== ""
+                    width: parent.width
+                    height: visible ? (todayRow.implicitHeight + Theme.spacingS * 2) : 0
+                    radius: 8
+                    color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
+                    border.color: Theme.primary
+                    border.width: 1
+
+                    Row {
+                        id: todayRow
+                        spacing: Theme.spacingS
+                        anchors.centerIn: parent
+                        width: parent.width - Theme.spacingM * 2
+
+                        DankIcon {
+                            name: "wb_twilight"
+                            size: Theme.iconSize - 2
+                            color: Theme.primary
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        StyledText {
+                            text: (root.isAr ? "صيام اليوم: " : "Today's Fast: ") + root.todayFastingReason
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Font.Medium
+                            color: Theme.surfaceText
+                            wrapMode: Text.WordWrap
+                            width: parent.width - (Theme.iconSize + Theme.spacingS)
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
+
+                // 2. كارت صيام الغد (يظل موجوداً في النافذة الكبيرة أيضاً)
+                Rectangle {
+                    visible: root.tomorrowFastingReason !== ""
+                    width: parent.width
+                    height: visible ? (tomorrowRow.implicitHeight + Theme.spacingS * 2) : 0
+                    radius: 8
+                    color: Qt.rgba(Theme.surfaceText.r, Theme.surfaceText.g, Theme.surfaceText.b, 0.06)
+                    border.color: Theme.surfaceVariantText
+                    border.width: 1
+
+                    Row {
+                        id: tomorrowRow
+                        spacing: Theme.spacingS
+                        anchors.centerIn: parent
+                        width: parent.width - Theme.spacingM * 2
+
+                        DankIcon {
+                            name: "bedtime"
+                            size: Theme.iconSize - 2
+                            color: Theme.surfaceVariantText
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        StyledText {
+                            text: (root.isAr ? "صيام الغد: " : "Tomorrow's Fast: ") + root.tomorrowFastingReason
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Font.Medium
+                            color: Theme.surfaceText
+                            wrapMode: Text.WordWrap
+                            width: parent.width - (Theme.iconSize + Theme.spacingS)
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
+
+                // Countdown card
                 Rectangle {
                     width: parent.width
                     height: cdCol.implicitHeight + Theme.spacingM * 2
@@ -667,7 +877,7 @@ PluginComponent {
                         spacing: 4
 
                         StyledText {
-                            text: root.nextName !== "" ? (root.nextName + "  in") : "—"
+                            text: root.nextTime !== "" ? (root.isAr ? ("متبقي على " + root.getPrayerName(root.nextName)) : (root.nextName + " in")) : "—"
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceVariantText
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -681,14 +891,12 @@ PluginComponent {
                             anchors.horizontalCenter: parent.horizontalCenter
 
                             Behavior on color {
-                                ColorAnimation {
-                                    duration: 400
-                                }
+                                ColorAnimation { duration: 400 }
                             }
                         }
 
                         StyledText {
-                            text: root.nextTime !== "" ? ("at  " + root.formatTime(root.nextTime)) : ""
+                            text: root.nextTime !== "" ? ((root.isAr ? "في تمام " : "at ") + root.formatTime(root.nextTime)) : ""
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceVariantText
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -699,41 +907,13 @@ PluginComponent {
                 // Prayer times list
                 Repeater {
                     model: [
-                        {
-                            label: "Imsak",
-                            time: root.imsak,
-                            icon: "moon_stars"
-                        },
-                        {
-                            label: "Fajr",
-                            time: root.fajr,
-                            icon: "bedtime"
-                        },
-                        {
-                            label: "Sunrise",
-                            time: root.sunrise,
-                            icon: "wb_twilight"
-                        },
-                        {
-                            label: "Dhuhr",
-                            time: root.dhuhr,
-                            icon: "wb_sunny"
-                        },
-                        {
-                            label: "Asr",
-                            time: root.asr,
-                            icon: "light_mode"
-                        },
-                        {
-                            label: "Maghrib",
-                            time: root.maghrib,
-                            icon: "wb_twilight"
-                        },
-                        {
-                            label: "Isha",
-                            time: root.isha,
-                            icon: "bedtime"
-                        }
+                        { label: "Imsak", time: root.imsak, icon: "moon_stars" },
+                        { label: "Fajr", time: root.fajr, icon: "bedtime" },
+                        { label: "Sunrise", time: root.sunrise, icon: "wb_twilight" },
+                        { label: "Dhuhr", time: root.dhuhr, icon: "wb_sunny" },
+                        { label: "Asr", time: root.asr, icon: "light_mode" },
+                        { label: "Maghrib", time: root.maghrib, icon: "wb_twilight" },
+                        { label: "Isha", time: root.isha, icon: "bedtime" }
                     ]
 
                     delegate: Item {
@@ -773,11 +953,11 @@ PluginComponent {
                                 }
 
                                 StyledText {
-                                    text: modelData.label
+                                    text: root.getPrayerName(modelData.label)
                                     font.pixelSize: Theme.fontSizeMedium
                                     font.weight: (isNext || isCurr) ? Font.Bold : Font.Normal
                                     color: isNext ? root.accentColor : (isCurr ? Theme.surfaceText : Theme.surfaceVariantText)
-                                    width: 64
+                                    width: 75
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
                             }
